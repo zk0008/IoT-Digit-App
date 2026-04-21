@@ -1,1 +1,4 @@
 flask
+tensorflow-macos
+numpy
+pillow

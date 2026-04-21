@@ -40,7 +40,7 @@ source venv/bin/activate
 python app.py
 ```
 
-The server will start at `http://localhost:5000`. Make sure the mobile app is pointing to this address when testing locally.
+The server will start at `http://127.0.0.1:5000`. Make sure the mobile app is pointing to this address when testing locally.
 
 ## Running the Flask server on GCP VM
 
