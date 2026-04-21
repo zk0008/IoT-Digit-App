@@ -6,4 +6,4 @@ MNIST was chosen because it is a well-known benchmark dataset for digit recognit
 
 The model achieved 98.99% test accuracy after 5 epochs on the MNIST dataset.
 
-The training script is in this same folder. Run it to train the model and save the weights.
+The training script is in this same folder. Run it to train the model and save the weights as model.weights.h5.

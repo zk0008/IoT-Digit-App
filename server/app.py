@@ -7,8 +7,20 @@ import tensorflow as tf
 
 app = Flask(__name__)
 
-# load the trained model once when the server starts
-model = tf.keras.models.load_model("model.h5")
+# define the same CNN architecture as in train.py
+model = tf.keras.models.Sequential([
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(10, activation='softmax')
+])
+model.compile(optimizer='adam',
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+# load the trained weights
+model.load_weights("model.weights.h5")
 
 def preprocess_image(b64_string):
     # decode base64 to bytes, open as image, convert to grayscale 28x28
@@ -39,7 +51,7 @@ def retrain():
     # do one training step on this single sample
     model.fit(arr, label, epochs=1, verbose=0)
     # save updated weights back to the same file
-    model.save("model.h5")
+    model.save_weights("model.weights.h5")
     return jsonify({"message": "Model updated and saved"})
 
 if __name__ == "__main__":

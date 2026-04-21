@@ -39,5 +39,5 @@ _, test_acc = model.evaluate(x_test, y_test)
 print(f"Test accuracy: {test_acc:.4f}")
 
 # save the trained weights
-model.save("model.h5")
-print("Model saved to model.h5")
+model.save_weights("model.weights.h5")
+print("Model weights saved to model.weights.h5")
