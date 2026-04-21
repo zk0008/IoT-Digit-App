@@ -42,14 +42,59 @@ python app.py
 
 The server will start at `http://127.0.0.1:5000`. Make sure the mobile app is pointing to this address when testing locally.
 
-## Running the Flask server on GCP VM
+## Deploying the Flask server on GCP VM
 
-SSH into the GCP VM instance, then:
+### Setup (run once)
 
+```bash
+# open GCP console, go to Compute Engine > VM Instances, click SSH next to your instance
+sudo apt update                                    # update package list
+sudo apt install python3-pip python3-venv git -y   # install required tools
+git clone <your-repo-url>                          # clone the project
+cd IoT-Digit-App/server                            # go to server folder
+python3 -m venv venv                               # create virtual environment
+source venv/bin/activate                           # activate virtual environment
+sed -i 's/tensorflow-macos/tensorflow/g' requirements.txt  # swap mac-only package for linux version
+sudo fallocate -l 2G /swapfile                     # create 2GB swap file
+sudo chmod 600 /swapfile                           # set correct permissions
+sudo mkswap /swapfile                              # format as swap
+sudo swapon /swapfile                              # enable swap
+pip install -r requirements.txt                    # install dependencies
 ```
-cd server
-source venv/bin/activate
-python app.py
+
+### Start the server
+
+```bash
+pgrep -f app.py                                    # check if server is already running
+nohup python3 app.py > server.log 2>&1 &           # run server in background
 ```
 
-The server will be accessible at `http://<GCP_EXTERNAL_IP>:5000`. Replace `<GCP_EXTERNAL_IP>` with the actual external IP address of the VM instance. Make sure port 5000 is open in the GCP firewall rules.
+### Check the server
+
+```bash
+curl http://127.0.0.1:5000/health                  # test locally on the VM
+curl http://<your-gcp-external-ip>:5000/health     # test from outside the VM
+```
+
+### Update the server (when new changes are pushed to GitHub)
+
+```bash
+cd IoT-Digit-App                                   # go to project root
+git pull                                           # pull latest changes
+cd server                                          # go to server folder
+source venv/bin/activate                           # reactivate venv
+pkill -f app.py                                    # stop old server
+nohup python3 app.py > server.log 2>&1 &           # restart with latest changes
+```
+
+### Stop the server
+
+```bash
+pkill -f app.py                                    # stop the server process
+```
+
+### Check logs
+
+```bash
+cat server.log                                     # view server output
+```
