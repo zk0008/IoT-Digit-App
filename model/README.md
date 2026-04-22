@@ -6,4 +6,6 @@ MNIST was chosen because it is a well-known benchmark dataset for digit recognit
 
 The model achieved 98.99% test accuracy after 5 epochs on the MNIST dataset.
 
+When the server receives a drawn digit, it crops the image to the bounding box of the drawn strokes, adds a small padding around it, and then resizes to 28x28. This helps centre the digit and better match the format MNIST was trained on.
+
 The training script is in this same folder. Run it to train the model and save the weights as model.weights.h5.

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import SignatureCanvas from 'react-native-signature-canvas';
 import axios from 'axios';
@@ -20,8 +21,27 @@ export default function App() {
   const [predictedString, setPredictedString] = useState(''); // original server predictions
   const [editedString, setEditedString] = useState('');        // what user sees and edits
   const [capturedImages, setCapturedImages] = useState([]);    // one image per predicted digit
-  const [successMessage, setSuccessMessage] = useState('');
-  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 }); // actual rendered size
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [serverConnected, setServerConnected] = useState(null); // null = unknown, true/false
+  const [lastPrediction, setLastPrediction] = useState('');     // "digit (confidence%)"
+  const [retrainLog, setRetrainLog] = useState([]);             // lines shown in the log
+
+  // check if server is reachable
+  const checkServer = async () => {
+    try {
+      await axios.get(`${SERVER_URL}/health`, { timeout: 3000 });
+      setServerConnected(true);
+    } catch {
+      setServerConnected(false);
+    }
+  };
+
+  // check on startup and then every 10 seconds
+  useEffect(() => {
+    checkServer();
+    const interval = setInterval(checkServer, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // user lifted pen - reset timer so we wait 0.8s after the last stroke
   const handleEnd = () => {
@@ -39,6 +59,9 @@ export default function App() {
     try {
       const response = await axios.post(`${SERVER_URL}/predict`, { image: base64 });
       const digit = String(response.data.prediction);
+      const confidence = response.data.confidence ?? 'N/A';
+
+      setLastPrediction(`${digit} (${confidence}%)`);
 
       // append the predicted digit and store the image for potential retraining
       setPredictedString(prev => prev + digit);
@@ -60,38 +83,59 @@ export default function App() {
   };
 
   // compare edited string against original, retrain on any changed positions
-  const handleConfirm = async () => {
+  const handleSubmit = async () => {
     const corrections = [];
     for (let i = 0; i < predictedString.length; i++) {
       // only retrain if we have an image for this position and the user changed it
       if (i < editedString.length && capturedImages[i] && editedString[i] !== predictedString[i]) {
-        corrections.push({ image: capturedImages[i], label: editedString[i] });
+        corrections.push({ index: i, image: capturedImages[i], original: predictedString[i], corrected: editedString[i] });
       }
     }
 
     if (corrections.length === 0) {
-      setSuccessMessage('No corrections to send.');
-      setTimeout(() => setSuccessMessage(''), 2000);
+      setRetrainLog(prev => [...prev, 'No corrections needed']);
       return;
     }
 
     setIsLoading(true);
     try {
       for (const c of corrections) {
-        await axios.post(`${SERVER_URL}/retrain`, { image: c.image, label: c.label });
+        await axios.post(`${SERVER_URL}/retrain`, { image: c.image, label: c.corrected });
+        setRetrainLog(prev => [...prev, `Position ${c.index + 1}: ${c.original} → ${c.corrected}, retrained`]);
+
+        // re-predict with the same image to update confidence
+        const res = await axios.post(`${SERVER_URL}/predict`, { image: c.image });
+        setLastPrediction(`${res.data.prediction} (${res.data.confidence}%)`);
       }
-      setSuccessMessage('Model updated!');
     } catch (error) {
       console.error('Retrain error:', error);
-      setSuccessMessage('Retrain failed.');
     } finally {
       setIsLoading(false);
-      setTimeout(() => setSuccessMessage(''), 2000);
     }
   };
 
+  // clear all resets everything including the log
+  const handleClearAll = () => {
+    setEditedString('');
+    setPredictedString('');
+    setCapturedImages([]);
+    setRetrainLog([]);
+    setLastPrediction('');
+    sigRef.current.clearSignature();
+  };
+
+  // server status dot colour and label
+  const dotColor = serverConnected === true ? '#4CAF50' : serverConnected === false ? '#F44336' : '#aaa';
+  const statusText = serverConnected === true ? 'Server: connected' : serverConnected === false ? 'Server: disconnected' : 'Server: checking...';
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* server status header */}
+      <View style={styles.statusBar}>
+        <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
+        <Text style={styles.statusText}>{statusText}</Text>
+      </View>
+
       {/* canvas fills all space above the bottom panel */}
       <View
         style={styles.canvasWrapper}
@@ -117,12 +161,12 @@ export default function App() {
         )}
       </View>
 
-      {/* fixed bottom panel with all controls */}
+      {/* bottom panel with all controls */}
       <View style={styles.bottomPanel}>
-        {/* clear just the current drawing */}
-        <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
-          <Text style={styles.clearButtonText}>Clear</Text>
-        </TouchableOpacity>
+        {/* confidence score from last prediction */}
+        <Text style={styles.confidenceText}>
+          {lastPrediction ? `Last prediction: ${lastPrediction}` : 'Draw a digit to begin'}
+        </Text>
 
         {/* editable field where predicted digits appear */}
         <TextInput
@@ -133,24 +177,30 @@ export default function App() {
           placeholderTextColor="#aaa"
         />
 
-        {/* submit sends corrections to retrain the model */}
-        <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-          <Text style={styles.confirmButtonText}>Submit</Text>
-        </TouchableOpacity>
+        {/* scrollable retrain log - max 5 lines visible */}
+        <ScrollView style={styles.logArea} nestedScrollEnabled>
+          {retrainLog.length === 0
+            ? <Text style={styles.logLine}>Retrain log will appear here</Text>
+            : retrainLog.map((line, i) => (
+                <Text key={i} style={styles.logLine}>{line}</Text>
+              ))
+          }
+        </ScrollView>
 
-        {/* clear all resets everything so the user can start fresh */}
-        <TouchableOpacity style={styles.clearButton} onPress={() => {
-          setEditedString('');
-          setPredictedString('');
-          setCapturedImages([]);
-          sigRef.current.clearSignature();
-        }}>
-          <Text style={styles.clearButtonText}>Clear All</Text>
-        </TouchableOpacity>
+        {/* button row: Clear, Clear All, Submit */}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.greyButton} onPress={handleClear}>
+            <Text style={styles.greyButtonText}>Clear</Text>
+          </TouchableOpacity>
 
-        {successMessage ? (
-          <Text style={styles.successMessage}>{successMessage}</Text>
-        ) : null}
+          <TouchableOpacity style={styles.greyButton} onPress={handleClearAll}>
+            <Text style={styles.greyButtonText}>Clear All</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+            <Text style={styles.submitButtonText}>Submit</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -161,19 +211,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F0E8',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
+  },
+  statusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 13,
+    color: '#555',
   },
   canvasWrapper: {
-    flex: 1,                // fills all space above the bottom panel
-    backgroundColor: 'white',
+    flex: 1,
     borderColor: '#ccc',
     borderWidth: 1,
     borderRadius: 8,
     overflow: 'hidden',
     marginBottom: 10,
-  },
-  canvas: {
-    flex: 1,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -181,21 +243,15 @@ const styles = StyleSheet.create({
     right: 10,
   },
   bottomPanel: {
-    height: 220,
+    height: 320,
     width: '100%',
     justifyContent: 'space-between',
     paddingBottom: 8,
   },
-  clearButton: {
-    width: '100%',
-    backgroundColor: '#e0e0e0',
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  clearButtonText: {
-    color: '#333',
-    fontSize: 14,
+  confidenceText: {
+    fontSize: 13,
+    color: '#555',
+    marginBottom: 4,
   },
   textInput: {
     width: '100%',
@@ -206,21 +262,46 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 18,
   },
-  confirmButton: {
-    width: '100%',
-    backgroundColor: '#5C4033',
-    paddingVertical: 14,
+  logArea: {
+    backgroundColor: 'white',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    maxHeight: 100, // about 5 lines
+  },
+  logLine: {
+    fontSize: 12,
+    color: '#555',
+    lineHeight: 20,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  greyButton: {
+    flex: 1,
+    backgroundColor: '#e0e0e0',
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
-  confirmButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  successMessage: {
-    color: '#5C4033',
+  greyButtonText: {
+    color: '#333',
     fontSize: 14,
-    textAlign: 'center',
+  },
+  submitButton: {
+    flex: 1,
+    backgroundColor: '#5C4033',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

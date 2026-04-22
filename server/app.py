@@ -64,9 +64,10 @@ def health():
 def predict():
     data = request.get_json()
     arr = preprocess_image(data["image"])
-    # run inference and pick the class with the highest score
-    prediction = int(np.argmax(model.predict(arr), axis=1)[0])
-    return jsonify({"prediction": prediction})
+    probs = model.predict(arr)[0]  # softmax output for all 10 classes
+    prediction = int(np.argmax(probs))
+    confidence = round(float(probs[prediction]) * 100, 1)
+    return jsonify({"prediction": prediction, "confidence": confidence})
 
 @app.route("/retrain", methods=["POST"])
 def retrain():
