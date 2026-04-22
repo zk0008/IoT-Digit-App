@@ -28,7 +28,7 @@ export default function App() {
     if (strokeTimer.current) clearTimeout(strokeTimer.current);
     strokeTimer.current = setTimeout(() => {
       sigRef.current.readSignature(); // triggers onOK with the base64 image
-    }, 500);
+    }, 800);
   };
 
   // called after readSignature() - signature is a full data URL
