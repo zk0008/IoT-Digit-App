@@ -32,6 +32,15 @@ npx expo start
 
 Scan the QR code shown in the terminal with the Camera app (or Expo Go directly) and it will open on your phone.
 
+Before running the app, create a file called `config.js` in the `mobile` folder with the following content:
+
+```js
+const SERVER_URL = "http://<your-gcp-external-ip>:5000";
+export default SERVER_URL;
+```
+
+This file is gitignored and must be created manually on each machine you run the app from.
+
 ## Running the Flask server locally
 
 ```
