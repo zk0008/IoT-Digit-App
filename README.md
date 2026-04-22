@@ -4,7 +4,11 @@ This app is a data entry tool designed for classified facility use. The idea is 
 
 ## What it does
 
-The mobile app lets a user draw a handwritten digit, sends it to a Flask backend, and gets back a prediction from a CNN trained on the MNIST dataset. The predicted digit can then be used as input for facility data logging.
+The mobile app collects handwritten digit input through a touchscreen canvas. Each digit the user draws is sent to the cloud server for inference, and the predicted digit gets appended to an editable text field in real time. A confidence score is shown for each prediction so the user knows how certain the model is.
+
+If the model gets a digit wrong, the user can edit the text field to correct it and tap Submit. This sends the corrected digits along with their original drawings back to the server for incremental retraining, so the model learns from the correction. A retrain log below the text field shows which digits were corrected and retrained in that session.
+
+A server status indicator at the top of the screen shows whether the app is currently connected to the cloud server. The Clear button wipes the canvas only, while Clear All resets the canvas, the text field, and the retrain log.
 
 ## Tech stack
 
