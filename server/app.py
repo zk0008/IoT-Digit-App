@@ -23,13 +23,38 @@ model.compile(optimizer='adam',
 model.load_weights("model.weights.h5")
 
 def preprocess_image(b64_string):
-    # decode base64 to bytes, open as image, convert to grayscale 28x28
+    # decode base64 and open as grayscale image
     img_bytes = base64.b64decode(b64_string)
-    img = Image.open(io.BytesIO(img_bytes)).convert("L").resize((28, 28))
-    # turn into numpy array, normalise to 0-1, reshape to match model input
+    img = Image.open(io.BytesIO(img_bytes)).convert("L")
+
+    # normalise to 0-1
     arr = np.array(img) / 255.0
-    arr = arr.reshape(1, 28, 28, 1)
-    return arr
+
+    # find rows and columns that have any drawn pixel above threshold
+    rows = np.where(arr.max(axis=1) > 0.1)[0]
+    cols = np.where(arr.max(axis=0) > 0.1)[0]
+
+    # if nothing was drawn, return a blank input
+    if len(rows) == 0 or len(cols) == 0:
+        return np.zeros((1, 28, 28, 1))
+
+    # crop to just the bounding box of the drawn content
+    crop = arr[rows[0]:rows[-1]+1, cols[0]:cols[-1]+1]
+
+    # add 10% padding around the crop on all sides
+    h, w = crop.shape
+    pad_h = max(1, int(h * 0.1))
+    pad_w = max(1, int(w * 0.1))
+    padded = np.pad(crop, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant', constant_values=0)
+
+    # resize padded crop to 28x28 using PIL
+    padded_img = Image.fromarray((padded * 255).astype(np.uint8))
+    resized = padded_img.resize((28, 28), Image.LANCZOS)
+
+    # reshape to match model input format
+    result = np.array(resized) / 255.0
+    result = result.reshape(1, 28, 28, 1)
+    return result
 
 @app.route("/health", methods=["GET"])
 def health():
