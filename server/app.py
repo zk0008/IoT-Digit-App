@@ -48,7 +48,10 @@ def retrain():
     data = request.get_json()
     arr = preprocess_image(data["image"])
     label = tf.keras.utils.to_categorical([int(data["label"])], num_classes=10)
-    # do one training step on this single sample
+    # recompile with a tiny learning rate so we nudge the model without overwriting what it learned
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
     model.fit(arr, label, epochs=1, verbose=0)
     # save updated weights back to the same file
     model.save_weights("model.weights.h5")
