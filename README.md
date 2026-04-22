@@ -10,31 +10,34 @@ If the model gets a digit wrong, the user can edit the text field to correct it 
 
 A server status indicator at the top of the screen shows whether the app is currently connected to the cloud server. The Clear button wipes the canvas only, while Clear All resets the canvas, the text field, and the retrain log.
 
+The server runs in threaded mode so multiple devices can connect and send requests at the same time without blocking each other.
+
 ## Tech stack
 
-The frontend is built with Expo React Native, so it runs on both iOS and Android. The backend is a Python Flask server that handles prediction requests. The CNN model was trained from scratch on MNIST. In production, the Flask server runs on a GCP VM instance.
+| Component | Technology | Details |
+|---|---|---|
+| Frontend | Expo React Native | iOS and Android |
+| Backend | Python Flask | REST API server |
+| Model | CNN trained on MNIST | Self-trained from scratch |
+| Cloud | GCP e2-micro VM | Free tier, us-central1 |
+| HTTP client | Axios | Mobile to server communication |
 
 ## Folder structure
 
-The `mobile` folder contains the Expo React Native app. The `server` folder contains the Flask backend and prediction logic. The `model` folder contains the CNN training script and saved model weights.
+```
+IoT-Digit-App/
+├── mobile/     - Expo React Native app
+├── server/     - Flask backend and model weights
+└── model/      - Training script and saved weights
+```
+
+## Requirements
+
+- Python 3.11
+- Node.js 18 or above
+- Xcode (for iOS Simulator)
 
 ## Running the Expo app
-
-To run on an iOS Simulator, make sure Xcode is installed, then run:
-
-```
-cd mobile
-npm run ios
-```
-
-To run on a physical iPhone, install the Expo Go app from the App Store, then run:
-
-```
-cd mobile
-npx expo start
-```
-
-Scan the QR code shown in the terminal with the Camera app (or Expo Go directly) and it will open on your phone.
 
 Before running the app, create a file called `config.js` in the `mobile` folder with the following content:
 
@@ -45,15 +48,49 @@ export default SERVER_URL;
 
 This file is gitignored and must be created manually on each machine you run the app from.
 
+To run on an iOS Simulator, make sure Xcode is installed, then run:
+
+```
+cd mobile
+npm install
+npm run ios
+```
+
+To run on a physical iPhone, install the Expo Go app from the App Store, then run:
+
+```
+cd mobile
+npm install
+npx expo start
+```
+
+Scan the QR code shown in the terminal with the Camera app (or Expo Go directly) and it will open on your phone.
+
 ## Running the Flask server locally
 
 ```
 cd server
+python3 -m venv venv
 source venv/bin/activate
+pip install -r requirements.txt
 python app.py
 ```
 
 The server will start at `http://127.0.0.1:5000`. Make sure the mobile app is pointing to this address when testing locally.
+
+## Training the model
+
+The training script is in the `model` folder. To retrain the model from scratch:
+
+```
+cd model
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python train.py
+```
+
+This downloads the MNIST dataset, trains the CNN for 5 epochs, prints the final test accuracy, and saves the weights to `model.weights.h5`. Copy the resulting `model.weights.h5` into the `server` folder before running the server.
 
 ## Deploying the Flask server on GCP VM
 
@@ -74,6 +111,8 @@ sudo mkswap /swapfile                              # format as swap
 sudo swapon /swapfile                              # enable swap
 pip install -r requirements.txt                    # install dependencies
 ```
+
+Also open port 5000 in the GCP firewall: go to **VPC Network > Firewall**, create a rule to allow TCP port 5000 from `0.0.0.0/0`.
 
 ### Start the server
 
